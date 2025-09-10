@@ -10,9 +10,8 @@ from imblearn.over_sampling import SMOTE
 # -------------------------
 # CONFIGURATION
 # -------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, "tel_churn.csv")   # relative path
-MODEL_PATH = os.path.join(BASE_DIR, "model.sav")
+DATA_PATH = r"C:\Users\Ayush Awasthi\Desktop\Churn_predication\tel_churn.csv"
+MODEL_PATH = "model.sav"
 
 app = Flask(__name__)
 
@@ -20,10 +19,8 @@ app = Flask(__name__)
 # FUNCTION TO TRAIN MODEL
 # -------------------------
 def train_and_save_model():
-    if not os.path.exists(DATA_PATH):
-        raise FileNotFoundError(f"Dataset not found at {DATA_PATH}. Please add tel_churn.csv to the repo.")
-
     print("📌 Training model...")
+
     df = pd.read_csv(DATA_PATH)
 
     # Split features and target
@@ -95,12 +92,12 @@ else:
     model, expected_features = train_and_save_model()
 
 # -------------------------
-# LOAD BASE DATA (optional, only for encoding new inputs)
+# LOAD BASE DATA
 # -------------------------
-if os.path.exists(DATA_PATH):
+try:
     df_base = pd.read_csv(DATA_PATH)
-else:
-    df_base = pd.DataFrame()   # fallback empty DF if dataset missing
+except FileNotFoundError:
+    exit(f"Error: Dataset not found at {DATA_PATH}")
 
 # -------------------------
 # FLASK ROUTES
@@ -141,24 +138,20 @@ def predict():
         if col in new_df.columns:
             new_df[col] = pd.to_numeric(new_df[col], errors='coerce').fillna(0.0)
 
-    if not df_base.empty:
-        combined_df = pd.concat([df_base.copy(), new_df], ignore_index=True, sort=False)
-    else:
-        combined_df = new_df.copy()
+    # Combine for encoding
+    combined_df = pd.concat([df_base.copy(), new_df], ignore_index=True, sort=False)
 
-    # Tenure grouping
-    if 'tenure' in combined_df.columns:
-        bins = [0, 12, 24, 36, 48, 60, 72, float('inf')]
-        labels = ["1-12", "13-24", "25-36", "37-48", "49-60", "61-72", "73+"]
-        combined_df['tenure_group'] = pd.cut(combined_df['tenure'], bins=bins, right=False, labels=labels, include_lowest=True)
-        combined_df.drop(columns=['tenure'], inplace=True)
+    bins = [0, 12, 24, 36, 48, 60, 72, float('inf')]
+    labels = ["1-12", "13-24", "25-36", "37-48", "49-60", "61-72", "73+"]
+    combined_df['tenure_group'] = pd.cut(combined_df['tenure'], bins=bins, right=False, labels=labels, include_lowest=True)
+    combined_df.drop(columns=['tenure'], inplace=True)
 
     cat_cols = ['gender', 'SeniorCitizen', 'Partner', 'Dependents', 'PhoneService',
                 'MultipleLines', 'InternetService', 'OnlineSecurity', 'OnlineBackup',
                 'DeviceProtection', 'TechSupport', 'StreamingTV', 'StreamingMovies',
                 'Contract', 'PaperlessBilling', 'PaymentMethod', 'tenure_group']
 
-    dummies = pd.get_dummies(combined_df[cat_cols], drop_first=False)
+    dummies = pd.get_dummies(combined_df[cat_cols])
 
     for num_col in ['MonthlyCharges', 'TotalCharges']:
         dummies[num_col] = combined_df[num_col]
